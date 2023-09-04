@@ -1,9 +1,17 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { Schema, schema } from 'src/utils/rules'
 import { yupResolver } from '@hookform/resolvers/yup'
-// import { getRules } from 'src/utils/rules'
+import { useMutation } from '@tanstack/react-query'
+import omit from 'lodash/omit'
+
+import { Schema, schema } from 'src/utils/rules'
 import Input from 'src/components/Input'
+import { registerAccount } from 'src/apis/auth.api'
+import { ResponseApi } from 'src/types/utils.type'
+import { isAxiosUnprocessableEntityError } from 'src/utils/utils'
+
+// import { getRules } from 'src/utils/rules'
 
 // interface FormData {
 //   email: string
@@ -17,17 +25,40 @@ export default function Register() {
     register,
     handleSubmit,
     watch,
+    setError,
     getValues,
     formState: { errors }
   } = useForm<FormData>({
     resolver: yupResolver(schema)
   })
+  const registerAccountMutation = useMutation({
+    mutationFn: (body: Omit<FormData, 'confirm_password'>) => registerAccount(body)
+  })
+
   // const rules = getRules(getValues)
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const onSubmit = handleSubmit((data) => {
-    const password = getValues('password')
-    console.log(password)
+    const body = omit(data, ['confirm_password'])
+    registerAccountMutation.mutate(body, {
+      onSuccess: (data) => {
+        console.log(data)
+      },
+      onError: (error) => {
+        // console.log(errors)
+        if (isAxiosUnprocessableEntityError<ResponseApi<Omit<FormData, 'confirm_password'>>>(error)) {
+          const formError = error.response?.data.data
+          if (formError) {
+            Object.keys(formError).forEach((key) => {
+              setError(key as keyof Omit<FormData, 'confirm_password'>, {
+                message: formError[key as keyof Omit<FormData, 'confirm_password'>],
+                type: 'Server'
+              })
+            })
+          }
+        }
+      }
+    })
   })
 
   const value = watch()
